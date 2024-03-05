@@ -5,6 +5,7 @@
 import sys
 
 from elpy.rpc import Fault
+
 # in case pkg_resources is not properly installed
 # (see https://github.com/jorgenschaefer/elpy/issues/1674).
 # in case pkg_resources is not properly installed
@@ -15,17 +16,22 @@ except ImportError:  # pragma: no cover
     try:
         from pkg_resources import parse_version
     except ImportError:  # pragma: no cover
+
         def parse_version(*arg, **kwargs):
-            raise Fault("`pkg_resources` could not be imported, "
-                        "please reinstall Elpy RPC virtualenv with"
-                        " `M-x elpy-rpc-reinstall-virtualenv`", code=400)
+            raise Fault(
+                "`pkg_resources` could not be imported, "
+                "please reinstall Elpy RPC virtualenv with"
+                " `M-x elpy-rpc-reinstall-virtualenv`",
+                code=400,
+            )
+
 
 import os
 
 try:
-    import toml
+    import tomli
 except ImportError:
-    toml = None
+    tomli = None
 
 
 BLACK_NOT_SUPPORTED = sys.version_info < (3, 6)
@@ -35,6 +41,7 @@ try:
         black = None
     else:
         import black
+
         current_version = parse_version(black.__version__)
         if current_version >= parse_version("21.5b1"):
             from black.files import find_pyproject_toml
@@ -48,9 +55,7 @@ except ImportError:  # pragma: no cover
 
 
 def fix_code(code, directory):
-    """Formats Python code to conform to the PEP 8 style guide.
-
-    """
+    """Formats Python code to conform to the PEP 8 style guide."""
     if not black:
         raise Fault("black not installed", code=400)
     # Get black config from pyproject.toml
@@ -60,8 +65,9 @@ def fix_code(code, directory):
         pyproject_path = find_pyproject_toml((directory,))
     else:
         pyproject_path = os.path.join(directory, "pyproject.toml")
-    if toml and pyproject_path and os.path.exists(pyproject_path):
-        pyproject_config = toml.load(pyproject_path)
+    if tomli and pyproject_path and os.path.exists(pyproject_path):
+        with open(pyproject_path) as f:
+            pyproject_config = tomli.loads(f.read())
         black_config = pyproject_config.get("tool", {}).get("black", {})
         if "line-length" in black_config:
             line_length = black_config["line-length"]
@@ -70,15 +76,17 @@ def fix_code(code, directory):
     try:
         if parse_version(black.__version__) < parse_version("19.0"):
             reformatted_source = black.format_file_contents(
-                src_contents=code, line_length=line_length, fast=False)
+                src_contents=code, line_length=line_length, fast=False
+            )
         else:
             fm = black.FileMode(
-                line_length=line_length,
-                string_normalization=string_normalization)
+                line_length=line_length, string_normalization=string_normalization
+            )
             reformatted_source = black.format_file_contents(
-                src_contents=code, fast=False, mode=fm)
+                src_contents=code, fast=False, mode=fm
+            )
         return reformatted_source
     except black.NothingChanged:
         return code
     except Exception as e:
-        raise Fault("Error during formatting: {}".format(e), code=400)
+        raise Fault(f"Error during formatting: {e}", code=400)
